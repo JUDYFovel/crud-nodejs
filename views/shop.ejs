@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= docTitle %></title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <link rel="stylesheet" href="/css/product.css" />
+  </head>
+  <body>
+    <!-- Navigation header -->
+    <header class="main-header">
+      <nav class="main-header_nav">
+        <ul class="main-header__item-list">
+          <li class="main-header__item"><a href="/">Shop</a></li>
+          <li class="main-header__item">
+            <a href="/cart">Cart</a>
+          </li>
+          <li class="main-header__item">
+            <a href="/add-product">Add product</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <!-- Main content area -->
+    <main>
+      <h1>My Products</h1>
+      <% if (prods.length > 0) { %>
+        <div class="product-list">
+          <% prods.forEach(prod => { %>
+            <div class="product-item">
+              <% if (prod.imageUrl) { %>
+                <img src="<%= prod.imageUrl %>" alt="<%= prod.title %>" style="max-width: 200px;">
+              <% } %>
+              <h3><%= prod.title %></h3>
+              <% if (prod.price) { %>
+                <p class="price">$<%= prod.price %></p>
+              <% } %>
+              <% if (prod.description) { %>
+                <p class="description"><%= prod.description %></p>
+              <% } %>
+              <% if (prod.id) { %>
+                <div class="product-actions">
+                  <a href="/edit-product/<%= prod.id %>" class="btn-edit">Edit</a>
+                  <form action="/delete-product" method="POST" style="display: inline;">
+                    <input type="hidden" name="productId" value="<%= prod.id %>">
+                    <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this product?')">Delete</button>
+                  </form>
+                  <form action="/add-to-cart" method="POST" style="display: inline;">
+                    <input type="hidden" name="productId" value="<%= prod.id %>">
+                    <button type="submit" class="btn-cart">Add to Cart</button>
+                  </form>
+                </div>
+              <% } %>
+            </div>
+          <% }); %>
+        </div>
+      <% } else { %>
+        <p>No products yet</p>
+      <% } %>
+    </main>
+  </body>
+</html>

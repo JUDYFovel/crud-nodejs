@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= docTitle %></title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/form.css">
+</head>
+<body>
+    <!-- Navigation header -->
+    <header class = 'main-header' >
+        <nav class = 'main-header_nav'>
+            <ul class = 'main-header__item-list'>
+                <li class = 'main-header__item'><a href="/">Shop</a></li>
+                <li class = 'main-header__item'><a  href="/add-product">Add product</a></li>
+            </ul>
+        </nav>
+    </header>
+    <!-- Main content area -->
+    <main>
+        <h1>Edit Product</h1>
+        <!-- Form to edit a product, submits to admin route -->
+        <form action="/edit-product" method="POST">
+            <input type="hidden" name="productId" value="<%= product.id %>">
+
+            <label for="title">Product Title</label>
+            <input type="text" name="title" id="title" placeholder="Enter product title" value="<%= product.title %>" required>
+
+            <label for="imageUrl">Image URL</label>
+            <input type="url" name="imageUrl" id="imageUrl" placeholder="Enter image URL" value="<%= product.imageUrl || '' %>">
+
+            <label for="price">Price</label>
+            <input type="number" name="price" id="price" step="0.01" placeholder="Enter price" value="<%= product.price %>" required>
+
+            <label for="description">Description</label>
+            <textarea name="description" id="description" rows="4" placeholder="Enter product description"><%= product.description || '' %></textarea>
+
+            <button type="submit">Update Product</button>
+        </form>
+    </main>
+</body>
+</html>

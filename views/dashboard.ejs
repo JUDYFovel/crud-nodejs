@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= docTitle %></title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .user-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .logout { display: inline-block; padding: 10px 20px; background: #dc3545; color: white; text-decoration: none; border-radius: 4px; }
+        .logout:hover { background: #c82333; }
+        .products { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+        .product { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; width: 300px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); text-align: center; }
+        .product img { max-width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin: 0.5rem 0; }
+        .actions { margin-top: 1rem; }
+        .actions a, .actions button { display: inline-block; padding: 0.5rem 1rem; margin: 0 0.25rem; text-decoration: none; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        .actions a:hover, .actions button:hover { background-color: #0056b3; }
+        .actions button { background-color: #dc3545; }
+        .actions button:hover { background-color: #c82333; }
+        .add-product { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
+        .add-product:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="user-info">
+        <h1>Tableau de bord</h1>
+        <p>Bienvenue, <%= user.email %> !</p>
+        <p>Vous êtes connecté avec succès.</p>
+        <a href="/logout" class="logout">Se déconnecter</a>
+    </div>
+
+    <a href="/add-product" class="add-product">Ajouter un Produit</a>
+
+    <h2>Produits</h2>
+    <div class="products">
+        <% if (products.length > 0) { %>
+            <% products.forEach(product => { %>
+                <div class="product">
+                    <h3><%= product.title %></h3>
+                    <p>Prix: <%= product.price %> €</p>
+                    <p>Description: <%= product.description %></p>
+                    <img src="<%= product.imageUrl %>" alt="<%= product.title %>">
+                    <p>Utilisateur: <%= product.userId.name %> (<%= product.userId.email %>)</p>
+                    <div class="actions">
+                        <a href="/edit-product/<%= product._id %>">Modifier</a>
+                        <form action="/delete-product/<%= product._id %>" method="POST" style="display:inline;">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button type="submit">Supprimer</button>
+                        </form>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <p>Aucun produit trouvé.</p>
+        <% } %>
+    </div>
+</body>
+</html>

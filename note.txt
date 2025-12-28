@@ -1,0 +1,321 @@
+------------ VARIABLE DESTRUCTING
+ const person = {
+    name : 'Max',
+    age : 29,
+    greet () {
+        console.log('Hi, I am ' + this.name);
+    }
+};
+
+const printName = (personData) =>  {
+    console.log(personData.name);
+}
+
+printName(person);
+
+const {name, age} = person;
+console.log(name, age);
+
+
+const hobbies = ['Sports', 'Cooking'];
+const [hobby1, hobby2] = hobbies;
+console.log(hobby1, hobby2);
+
+/* 
+const copiedPerson = {...person};
+console.log(copiedPerson);
+const hobbies = ['Sports', 'Cooking'];
+/* for (let hobby of hobbies) {
+ console.log(hobby);
+} */
+/* 
+ console.log(hobbies.map( hobby =>  'Hobby ' + hobby));
+  console.log(hobbies); */
+  //hobbies.push('Programming');/* 
+  /* const copiedArray = [...hobbies];
+  console.log(copiedArray);
+
+  const toArray = (...args) => {
+      return [...args];
+  };
+
+  console.log(toArray(1, 2, 3, 4));   */
+
+
+  
+
+------------ASYNC CODE & PROMISES
+const fetchData = () => {
+    const promise = new Promise((resolve, reject) => {
+      setTimeout(() => {
+          resolve('Done!');
+    }, 1500);
+    }); 
+    return promise;
+};
+
+setTimeout(() => {
+    console.log('Timer is done!');
+    fetchData ( ).then(text => {
+        console.log(text);
+       return fetchData();
+    }).then (text2 => {
+        console.log(text2);
+        });
+}, 2000);
+
+ console.log('Hello!');
+  console.log('Hi!');
+
+
+ -----------------CREATING A NODE SERVER 
+  const http =  require('http');
+
+const server = http.createServer( (req, res) => {
+    console.log(req);
+});
+
+server.listen(3000);
+
+---------------UNDERSTANDING REQUIRE
+const http =  require('http');
+
+const server = http.createServer( (req, res) => {
+    console.log(req.url, req.method, req.headers);
+   // process.exit();
+   res.setHeader('Content-Type', 'text/html');
+   res.write('<html>');
+   res.write('<head><title>My First Page</title><head>');
+   res.write('<body><h1>Hello from my Node.js Server </h1></body>');
+   res.write('</html>');
+   res.end();
+   
+});
+
+server.listen(3000);
+
+----------ROUTING REQUESTS
+const http =  require('http');
+
+const server = http.createServer( (req, res) => {
+  const url = req.url;
+  if(url === '/') {
+   res.write('<html>');
+   res.write('<head><title>Enter Message</title><head>');
+   res.write('<body><form action="/message" method="POST"><input type="texte" name="message"><button type="submit"> Send </button> </form></body>');
+   res.write('</html>');
+   return res.end();
+  }
+
+   res.setHeader('Content-Type', 'text/html');
+   res.write('<html>');
+   res.write('<head><title>My First Page</title><head>');
+   res.write('<body><h1>Hello from my Node.js Server </h1></body>');
+   res.write('</html>');
+   res.end();
+   
+});
+
+server.listen(3000);
+
+---------PARSING REQUEST BODIES
+const http =  require('http');
+const fs = require('fs');
+
+const server = http.createServer( (req, res) => {
+  const url = req.url;
+  const method = req.method;
+  if(url === '/') {
+   res.write('<html>');
+   res.write('<head><title>Enter Message</title><head>');
+   res.write('<body><form action="/message" method="POST"><input type="texte" name="message"><button type="submit"> Send </button> </form></body>');
+   res.write('</html>');
+   return res.end();
+  }
+    
+  if(url === '/message' && method === "POST" ) {
+    const body = [];
+    req.on('data', (chunk) => {
+        console.log(chunk);
+        body.push(chunk);
+
+    });
+    req.on('end', () => {
+        const parseBody = Buffer.concat(body).toString();
+      const message = parseBody.split('=')[1];
+        fs.writeFileSync('message.txt', message);
+    } );
+  
+    res.statusCode = 302;
+    res.setHeader('Location', '/');
+     return res.end();
+  }
+   res.setHeader('Content-Type', 'text/html');
+   res.write('<html>');
+   res.write('<head><title>My First Page</title><head>');
+   res.write('<body><h1>Hello from my Node.js Server </h1></body>');
+   res.write('</html>');
+   res.end();
+   
+});
+
+server.listen(3000);
+
+
+-------USING THE NODE MODULES SYSTEM
+###routes.js 
+ const fs = require('fs');
+ 
+const requestHandler = (req, res) => {
+    const url = req.url;
+    const method = req.method;
+     if(url === '/') {
+   res.write('<html>');
+   res.write('<head><title>Enter Message</title><head>');
+   res.write('<body><form action="/message" method="POST"><input type="texte" name="message"><button type="submit"> Send </button> </form></body>');
+   res.write('</html>');
+   return res.end();
+  }
+    
+  if(url === '/message' && method === "POST" ) {
+    const body = [];
+    req.on('data', (chunk) => {
+        console.log(chunk);
+        body.push(chunk);
+
+    });
+    return req.on('end', () => {
+        const parseBody = Buffer.concat(body).toString();
+        const message = parseBody.split('=')[1];
+        fs.writeFile('message.txt', message, (err) => {
+        res.statusCode = 302;
+        res.setHeader('Location', '/');
+        return res.end();
+        });
+    } );
+  
+   
+  }
+   res.setHeader('Content-Type', 'text/html');
+   res.write('<html>');
+   res.write('<head><title>My First Page</title><head>');
+   res.write('<body><h1> Hello from my Node.js Server </h1></body>');
+   res.write('</html>');
+   res.end();
+    
+};
+
+//module.exports = requestHandler;
+
+
+/* 
+module.exports = {
+    handler : requestHandler,
+    someText : 'Some hard coded text'
+
+};
+ */
+
+
+
+/* modules.exports.handler = requestHandler;
+modules.exports.someText = 'Some hard coded texte'; */
+
+
+
+exports.handler = requestHandler;
+exports.someText = 'Some hard coded texte';
+
+###app.js
+ const http =  require('http');
+const routes = require('./routes');
+
+console.log(routes.someText);
+
+const server = http.createServer(routes.handler);
+
+server.listen(3000);
+  
+  ------MIDDLEWARE
+  
+  const http =  require('http');
+const express = require ('express');
+
+const app = express();
+
+
+app.use((req, res, next) => {
+    console.log('In the Middleware');
+    next();
+});
+
+app.use((req, res, next) => {
+
+    console.log('In another  Middleware');
+    res.send('<h1>Hello from Express!</h1>');
+});
+const server = http.createServer(app);
+
+server.listen(3000);   
+
+
+-----HANDING DIFFERENTS ROUTES
+
+const http =  require('http');
+const express = require ('express');
+
+const app = express();
+
+app.use('/', (req, res, next) => {
+    console.log('This always runs');
+    next();
+
+});
+app.use('/add-product',(req, res, next) => {
+
+    console.log('In another  Middleware');
+    res.send('<h1>Hello from Express 1111!</h1>');
+   
+});
+
+app.use('/',(req, res, next) => {
+
+    console.log('In another  Middleware');
+    res.send('<h1>Hello from Express!</h1>');
+});
+
+app.listen(3000);   
+
+--------------------------------------------------------------------
+const express = require ('express');
+const bodyParser = require ('body-parser');
+
+const app = express();
+
+app.use(bodyParser.urlencoded({extended:false}));
+
+app.use('/', (req, res, next) => {
+    console.log('This always runs');
+    next();
+
+});
+app.use('/add-product',(req, res, next) => {
+
+    console.log('In another  Middleware');
+    res.send('<form action="/product" method ="POST"><input type ="text" name ="title"><button type ="submit">Add Product</button></form>');
+   
+});
+
+
+app.post('/product',(req, res, next) => {
+    console.log(req.body);
+    res.redirect('/');
+});
+
+app.use('/',(req, res, next) => {
+
+    console.log('In another  Middleware');
+    res.send('<h1>Hello from Express!</h1>');
+});
+
+app.listen(3000);   

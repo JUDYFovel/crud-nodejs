@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= docTitle %></title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <link rel="stylesheet" href="/css/product.css" />
+  </head>
+  <body>
+    <!-- Navigation header -->
+    <header class="main-header">
+      <nav class="main-header_nav">
+        <ul class="main-header__item-list">
+          <li class="main-header__item"><a href="/">Shop</a></li>
+          <li class="main-header__item">
+            <a href="/add-product">Add product</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <!-- Main content area -->
+    <main>
+      <h1>My Products</h1>
+      <% if (prods.length > 0) { %>
+        <ul class="product-list">
+          <% prods.forEach(prod => { %>
+            <li class="product-item"><%= prod.title %> </li>
+          <% }); %>
+        </ul>
+      <% } else { %>
+        <p>No products yet</p>
+      <% } %>
+    </main>
+  </body>
+</html>
