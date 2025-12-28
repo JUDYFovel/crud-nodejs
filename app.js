@@ -19,6 +19,9 @@ const User = require('./models/User');
 
 const app = express();
 
+// IMPORTANT : Faire confiance aux proxies (Railway utilise des load balancers)
+app.set('trust proxy', 1); // Faire confiance au premier proxy
+
 // Set up EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -43,13 +46,17 @@ app.use(helmet({
   },
 }));
 
-// ÉTAPE 3 — Rate Limiting
+// ÉTAPE 3 — Rate Limiting (configuré pour les proxies)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Trop de requêtes, réessayez plus tard',
   standardHeaders: true,
   legacyHeaders: false,
+  // Utiliser l'IP réelle derrière le proxy
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress;
+  },
 });
 app.use(limiter);
 
