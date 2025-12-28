@@ -10,8 +10,7 @@
     "build": "echo 'No build step required'"
   },
   "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "node": "18.x"
   },
   "author": "Judicael",
   "license": "ISC",
