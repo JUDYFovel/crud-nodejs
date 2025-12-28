@@ -55,6 +55,11 @@ app.use(limiter);
 
 connectDB();
 
+// Utiliser les variables d'environnement
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://john:john123@cluster0.o7hvg7s.mongodb.net/shop';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'a9f8s7d6f5g4h3j2k1l0qwertyuiopzxcvbnm';
+
 // ÉTAPE 2 — Protection CSRF
 const csrfProtection = csrf();
 
