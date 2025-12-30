@@ -1,11 +1,11 @@
 const nodemailer = require('nodemailer');
 
-// Configuration SMTP pour Gmail
+// Configuration SMTP pour Gmail - Utiliser les variables d'environnement
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'fovelosonjudicael@gmail.com',
-    pass: 'ahxjuxpwdkodgpbc'
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS
   }
 });
 
@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
 const sendWelcomeEmail = async (toEmail, userName) => {
   try {
     const mailOptions = {
-      from: '"Mon Application" <fovelosonjudicael@gmail.com>',
+      from: `"Mon Application" <${process.env.MAIL_USER}>`,
       to: toEmail,
       subject: 'Bienvenue sur notre plateforme !',
       html: `
@@ -51,10 +51,10 @@ const sendWelcomeEmail = async (toEmail, userName) => {
 // Fonction pour envoyer un email de réinitialisation de mot de passe
 const sendPasswordResetEmail = async (toEmail, resetToken) => {
   try {
-    const resetLink = `http://localhost:3000/reset/${resetToken}`;
+    const resetLink = `${process.env.CLIENT_URL}/reset/${resetToken}`;
 
     const mailOptions = {
-      from: '"Mon Application" <fovelosonjudicael@gmail.com>',
+      from: `"Mon Application" <${process.env.MAIL_USER}>`,
       to: toEmail,
       subject: 'Réinitialisation de votre mot de passe',
       html: `
@@ -99,7 +99,7 @@ const sendPasswordResetEmail = async (toEmail, resetToken) => {
 const sendEmail = async (to, subject, htmlContent, textContent) => {
   try {
     const mailOptions = {
-      from: '"Mon Application" <fovelosonjudicael@gmail.com>',
+      from: `"Mon Application" <${process.env.MAIL_USER}>`,
       to: to,
       subject: subject,
       html: htmlContent,

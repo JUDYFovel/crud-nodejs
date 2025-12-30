@@ -31,6 +31,53 @@
 
     <a href="/add-product" class="add-product">Ajouter un Produit</a>
 
+    <!-- Panier Section -->
+    <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;">
+        <h2>🛒 Votre Panier</h2>
+        <% if (user && user.cart && user.cart.items && user.cart.items.length > 0) { %>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #2196F3; color: white;">
+                        <th style="padding: 10px; text-align: left;">Produit</th>
+                        <th style="padding: 10px; text-align: center;">Quantité</th>
+                        <th style="padding: 10px; text-align: right;">Prix</th>
+                        <th style="padding: 10px; text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% 
+                    let totalPrice = 0;
+                    user.cart.items.forEach(item => {
+                        if (item.productId && item.productId.price) {
+                            const itemTotal = item.productId.price * item.quantity;
+                            totalPrice += itemTotal;
+                    %>
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;"><%= item.productId.title %></td>
+                            <td style="padding: 10px; text-align: center;"><%= item.quantity %></td>
+                            <td style="padding: 10px; text-align: right;"><%= item.productId.price %> €</td>
+                            <td style="padding: 10px; text-align: right;"><strong><%= itemTotal %> €</strong></td>
+                        </tr>
+                    <%
+                        }
+                    });
+                    %>
+                </tbody>
+            </table>
+            <div style="margin-top: 20px; text-align: right;">
+                <h3>Montant Total: <span style="color: #2196F3; font-size: 24px;"><%= totalPrice %> €</span></h3>
+                <form action="/create-checkout-session" method="POST" style="display: inline;">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" style="padding: 12px 30px; background: #4CAF50; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px;">
+                        💳 Passer la Commande (Stripe)
+                    </button>
+                </form>
+            </div>
+        <% } else { %>
+            <p style="color: #666;">Votre panier est vide.</p>
+        <% } %>
+    </div>
+
     <h2>Produits</h2>
     <div class="products">
         <% if (products.length > 0) { %>
@@ -42,6 +89,11 @@
                     <img src="<%= product.imageUrl %>" alt="<%= product.title %>">
                     <p>Utilisateur: <%= product.userId.name %> (<%= product.userId.email %>)</p>
                     <div class="actions">
+                        <form action="/add-to-cart" method="POST" style="display:inline;">
+                            <input type="hidden" name="productId" value="<%= product._id %>">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button type="submit" style="background-color: #28a745;">🛒 Ajouter au Panier</button>
+                        </form>
                         <a href="/edit-product/<%= product._id %>">Modifier</a>
                         <form action="/delete-product/<%= product._id %>" method="POST" style="display:inline;">
                             <input type="hidden" name="_csrf" value="<%= csrfToken %>">

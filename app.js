@@ -14,84 +14,239 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./utils/database');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('./utils/email');
 
+// Initialisation Stripe
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// Payment Service Class
+class PaymentService {
+  static async createCheckoutSession(reservation, successUrl, cancelUrl) {
+    try {
+      console.log('DEBUG: PaymentService.createCheckoutSession called');
+      console.log('DEBUG: Reservation email:', reservation.email);
+      console.log('DEBUG: Cart items count:', reservation.cart.items.length);
+
+      const lineItems = reservation.cart.items.map(item => ({
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: item.productId.title,
+            description: item.productId.description,
+            images: [item.productId.imageUrl]
+          },
+          unit_amount: Math.round(item.productId.price * 100)
+        },
+        quantity: item.quantity
+      }));
+
+      console.log('DEBUG: Line items:', JSON.stringify(lineItems, null, 2));
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: lineItems,
+        mode: 'payment',
+        ui_mode: 'embedded',
+        return_url: successUrl,
+        metadata: {
+          userId: reservation._id.toString(),
+          orderId: `order_${Date.now()}`
+        },
+        customer_email: reservation.email
+      });
+
+      console.log('DEBUG: Stripe session created successfully:', session.id);
+      return session;
+    } catch (error) {
+      console.error('Erreur création session Stripe:', error);
+      console.error('DEBUG: Stripe error details:', error.raw || error);
+      throw new Error('Impossible de créer la session de paiement');
+    }
+  }
+
+  static async getCheckoutSession(sessionId) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      return { session };
+    } catch (error) {
+      console.error('Erreur récupération session:', error);
+      throw new Error('Session introuvable');
+    }
+  }
+
+  static async handleStripeEvent(event) {
+    const { type, data } = event;
+
+    console.log(`📥 Événement Stripe reçu: ${type}`);
+
+    try {
+      switch (type) {
+        case 'checkout.session.completed':
+          await this.handleCheckoutCompleted(data.object);
+          break;
+        case 'payment_intent.succeeded':
+          console.log('✅ Paiement réussi:', data.object.id);
+          break;
+        case 'payment_intent.payment_failed':
+          console.log('❌ Paiement échoué:', data.object.id);
+          break;
+        default:
+          console.log(`ℹ️ Événement non géré: ${type}`);
+      }
+    } catch (error) {
+      console.error(`❌ Erreur traitement événement ${type}:`, error);
+      throw error;
+    }
+  }
+
+  static async handleCheckoutCompleted(session) {
+    const { userId } = session.metadata;
+
+    try {
+      const User = require('./models/User');
+      const user = await User.findById(userId);
+
+      if (!user) {
+        console.error(`Utilisateur ${userId} introuvable`);
+        return;
+      }
+
+      // Vider le panier après paiement réussi
+      user.cart.items = [];
+      await user.save();
+
+      console.log(`✅ Paiement confirmé pour ${user.email}, panier vidé`);
+
+    } catch (error) {
+      console.error(`Erreur confirmation paiement ${userId}:`, error);
+      throw error;
+    }
+  }
+}
+
 const Product = require('./models/Product');
 const User = require('./models/User');
 
 const app = express();
 
-// IMPORTANT : Faire confiance aux proxies (Railway utilise des load balancers)
-app.set('trust proxy', 1); // Faire confiance au premier proxy
+// IMPORTANT : Faire confiance aux proxies (Railway/Heroku utilise des load balancers)
+app.set('trust proxy', 1);
 
 // Set up EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// ============================================================================
+// WEBHOOK STRIPE - DOIT ÊTRE AVANT bodyParser.json() !!!
+// ============================================================================
+app.post('/webhook', 
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!endpointSecret) {
+      console.warn('⚠️ STRIPE_WEBHOOK_SECRET non configuré');
+      return res.status(400).send('Webhook secret not configured');
+    }
+
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      console.log(`✅ Webhook Stripe vérifié: ${event.type}`);
+    } catch (err) {
+      console.error('❌ Erreur webhook:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Traiter l'événement de manière asynchrone
+    PaymentService.handleStripeEvent(event)
+      .then(() => res.json({ received: true }))
+      .catch(err => {
+        console.error('Erreur traitement webhook:', err);
+        res.status(500).json({ error: 'Erreur traitement webhook' });
+      });
+  }
+);
+
+// ============================================================================
+// BODY PARSERS - APRÈS le webhook Stripe
+// ============================================================================
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ÉTAPE 1 — Helmet (Sécurité HTTP) - Configuration personnalisée pour les images
+// ============================================================================
+// HELMET - Sécurité HTTP avec configuration Stripe
+// ============================================================================
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:", "http:"], // Permet les images externes
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],  // ✅ Ajout 'unsafe-inline'
+      imgSrc: ["'self'", "data:", "https:", "http:"],
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com"],
     },
   },
 }));
 
-// ÉTAPE 3 — Rate Limiting (configuré pour les proxies)
+// ============================================================================
+// RATE LIMITING
+// ============================================================================
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Trop de requêtes, réessayez plus tard',
   standardHeaders: true,
-  legacyHeaders: false,
-  // Utiliser l'IP réelle derrière le proxy
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress;
-  },
+  legacyHeaders: false
 });
 app.use(limiter);
 
+// ============================================================================
+// CONNEXION DATABASE
+// ============================================================================
 connectDB();
 
-// Utiliser les variables d'environnement
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://john:john123@cluster0.o7hvg7s.mongodb.net/shop';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'a9f8s7d6f5g4h3j2k1l0qwertyuiopzxcvbnm';
-
-// ÉTAPE 2 — Protection CSRF
-const csrfProtection = csrf();
-
-// Session configuration sécurisée
+// ============================================================================
+// SESSION CONFIGURATION
+// ============================================================================
 app.use(session({
   secret: process.env.SESSION_SECRET || 'a9f8s7d6f5g4h3j2k1l0qwertyuiopzxcvbnm',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    httpOnly: true, // Empêche l'accès JavaScript au cookie
-    secure: process.env.NODE_ENV === 'production', // HTTPS uniquement en production
-    maxAge: 1000 * 60 * 60 // 1 heure
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 24
   }
 }));
 
-// ÉTAPE 2 — Protection CSRF (activée après les sessions)
-app.use(csrfProtection);
+// ============================================================================
+// CSRF PROTECTION - Exclure les routes Stripe
+// ============================================================================
+const csrfProtection = csrf();
 
-// Middleware global pour CSRF token
 app.use((req, res, next) => {
-  res.locals.csrfToken = req.csrfToken ? req.csrfToken() : '';
-  next();
+  const csrfExcludedPaths = ['/create-checkout-session', '/webhook', '/test-checkout', '/session-status'];
+  
+  if (csrfExcludedPaths.includes(req.path)) {
+    return next();
+  }
+  
+  return csrfProtection(req, res, (err) => {
+    if (err) return next(err);
+    res.locals.csrfToken = req.csrfToken ? req.csrfToken() : '';
+    next();
+  });
 });
 
-// Middleware to check authentication
+// ============================================================================
+// MIDDLEWARE AUTH
+// ============================================================================
 const requireAuth = (req, res, next) => {
   if (req.session.userId) {
     return next();
@@ -99,12 +254,185 @@ const requireAuth = (req, res, next) => {
   res.redirect('/login');
 };
 
-// Test endpoint pour debug
+// ============================================================================
+// ROUTES DE TEST
+// ============================================================================
 app.get('/test', (req, res) => {
-  res.json({ message: 'Test endpoint works', timestamp: new Date() });
+  res.json({ 
+    message: 'Test endpoint works', 
+    timestamp: new Date(),
+    stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+    webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET
+  });
 });
 
-// Home - redirect to login if not authenticated
+app.get('/create-test-user', async (req, res) => {
+  try {
+    const existingUser = await User.findOne({ email: 'test@example.com' });
+    if (existingUser) {
+      return res.json({ message: 'Test user already exists', user: existingUser });
+    }
+
+    const hashedPassword = await bcrypt.hash('test123', 12);
+    const user = new User({
+      name: 'Test User',
+      email: 'test@example.com',
+      password: hashedPassword,
+      cart: { items: [] }
+    });
+
+    await user.save();
+    res.json({ message: 'Test user created', user: { name: user.name, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/test-login', async (req, res) => {
+  try {
+    const user = await User.findOne({ email: 'test@example.com' });
+    if (!user) {
+      return res.status(404).json({ error: 'Test user not found' });
+    }
+
+    req.session.userId = user._id;
+    res.json({ message: 'Logged in as test user', user: { name: user.name, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/test-add-to-cart/:productId', requireAuth, async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const user = await User.findById(req.session.userId);
+    if (!user.cart) {
+      user.cart = { items: [] };
+    }
+
+    const cartItemIndex = user.cart.items.findIndex(item => item.productId.toString() === productId);
+    if (cartItemIndex >= 0) {
+      user.cart.items[cartItemIndex].quantity += 1;
+    } else {
+      user.cart.items.push({ productId: productId, quantity: 1 });
+    }
+
+    await user.save();
+    res.json({ message: 'Product added to cart', cart: user.cart });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// ROUTES STRIPE CHECKOUT
+// ============================================================================
+
+// Créer une session Stripe Checkout
+app.post('/create-checkout-session', requireAuth, async (req, res) => {
+  try {
+    console.log('🔄 Création session Stripe pour user:', req.session.userId);
+    const user = await User.findById(req.session.userId).populate('cart.items.productId');
+
+    if (!user) {
+      console.log('❌ User not found');
+      return res.redirect('/dashboard');
+    }
+
+    if (!user.cart.items.length) {
+      console.log('❌ Cart is empty');
+      return res.redirect('/dashboard');
+    }
+
+    console.log('✅ Cart items:', user.cart.items.length);
+
+    // Filter out invalid cart items
+    const validItems = user.cart.items.filter(item => item.productId && item.productId.title);
+    user.cart.items = validItems;
+    await user.save();
+
+    if (validItems.length === 0) {
+      console.log('❌ No valid items in cart');
+      return res.redirect('/dashboard');
+    }
+
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const successUrl = `${protocol}://${host}/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${protocol}://${host}/cancel`;
+
+    // Créer la session avec le service
+    const session = await PaymentService.createCheckoutSession(user, successUrl, cancelUrl);
+
+    console.log('✅ Session Stripe créée:', session.id);
+    
+    res.render('checkout', {
+      clientSecret: session.client_secret,
+      docTitle: 'Paiement',
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
+    });
+  } catch (err) {
+    console.error('❌ Erreur Stripe:', err.message);
+    res.redirect('/dashboard');
+  }
+});
+
+// Vérifier le statut de la session (appelé après paiement)
+app.get('/session-status', requireAuth, async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+    const sessionData = await PaymentService.getCheckoutSession(sessionId);
+    
+    res.json({
+      status: sessionData.session.status,
+      customer_email: sessionData.session.customer_details?.email
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Page de succès de paiement
+app.get('/success', requireAuth, async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+    
+    if (!sessionId) {
+      return res.redirect('/dashboard');
+    }
+
+    const sessionData = await PaymentService.getCheckoutSession(sessionId);
+    const session = sessionData.session;
+
+    // Le panier est vidé automatiquement via webhook
+    const user = await User.findById(req.session.userId);
+    if (user && user.cart.items.length > 0) {
+      user.cart.items = [];
+      await user.save();
+    }
+
+    res.render('success', { docTitle: 'Paiement réussi', session });
+  } catch (err) {
+    console.error('Erreur récupération session Stripe:', err);
+    res.redirect('/dashboard');
+  }
+});
+
+// Page d'annulation de paiement
+app.get('/cancel', requireAuth, (req, res) => {
+  res.render('cancel', { docTitle: 'Paiement annulé' });
+});
+
+// ============================================================================
+// ROUTES PRINCIPALES
+// ============================================================================
+
 app.get('/', (req, res) => {
   if (req.session.userId) {
     res.redirect('/dashboard');
@@ -113,11 +441,28 @@ app.get('/', (req, res) => {
   }
 });
 
-// Dashboard - protected route
 app.get('/dashboard', requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.session.userId);
+    const user = await User.findById(req.session.userId).populate('cart.items.productId');
     const products = await Product.find().populate('userId');
+
+    // Clean invalid cart items
+    if (user.cart && user.cart.items) {
+      const validItems = user.cart.items.filter(item => 
+        item.productId && item.productId.title && typeof item.productId.price === 'number'
+      );
+      
+      if (validItems.length !== user.cart.items.length) {
+        user.cart.items = validItems;
+        await user.save();
+      }
+    }
+
+    if (!user.cart) {
+      user.cart = { items: [] };
+      await user.save();
+    }
+
     res.render('dashboard', { user, products, docTitle: 'Tableau de bord' });
   } catch (err) {
     console.error(err);
@@ -125,22 +470,63 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   }
 });
 
-// Login page
+app.post('/add-to-cart', requireAuth, async (req, res) => {
+  try {
+    const productId = req.body.productId;
+
+    if (!productId) {
+      console.log('❌ No productId provided');
+      return res.redirect('/dashboard');
+    }
+
+    const user = await User.findById(req.session.userId);
+    if (!user) {
+      console.log('❌ User not found');
+      return res.redirect('/login');
+    }
+
+    const product = await Product.findById(productId);
+    if (!product || !product.title || !product.price) {
+      console.log('❌ Product not found or invalid:', productId);
+      return res.redirect('/dashboard');
+    }
+
+    if (!user.cart) {
+      user.cart = { items: [] };
+    }
+
+    const cartItemIndex = user.cart.items.findIndex(item => 
+      item.productId && item.productId.toString() === productId
+    );
+
+    if (cartItemIndex >= 0) {
+      user.cart.items[cartItemIndex].quantity += 1;
+    } else {
+      user.cart.items.push({ productId: productId, quantity: 1 });
+    }
+
+    await user.save();
+    console.log('✅ Product added to cart:', product.title);
+
+    res.redirect('/dashboard');
+  } catch (err) {
+    console.error('❌ Error adding to cart:', err);
+    res.redirect('/dashboard');
+  }
+});
+
+// ============================================================================
+// ROUTES AUTH
+// ============================================================================
+
 app.get('/login', (req, res) => {
   res.render('login', { docTitle: 'Connexion', errorMessage: null, successMessage: null });
 });
 
-// Login POST with validation
 app.post('/login',
   [
-    body('email')
-      .isEmail()
-      .withMessage('Email invalide')
-      .normalizeEmail(),
-    body('password')
-      .trim()
-      .notEmpty()
-      .withMessage('Mot de passe requis')
+    body('email').isEmail().withMessage('Email invalide').normalizeEmail(),
+    body('password').trim().notEmpty().withMessage('Mot de passe requis')
   ],
   async (req, res) => {
     try {
@@ -174,24 +560,19 @@ app.post('/login',
         successMessage: null
       });
     }
-  });
+  }
+);
 
-// Signup page
 app.get('/signup', (req, res) => {
   res.render('signup', { docTitle: 'Inscription', errorMessage: null, oldInput: null });
 });
 
-// Signup POST with validation (DEBUG MODE - sans validation pour isoler le problème)
 app.post('/signup', async (req, res) => {
   try {
     console.log('=== DEBUG INSCRIPTION ===');
-    console.log('Body reçu:', req.body);
-
     const { email, password, confirmPassword } = req.body;
 
-    // Vérification basique
     if (!email || !password) {
-      console.log('Email ou password manquant');
       return res.render('signup', {
         docTitle: 'Inscription',
         errorMessage: 'Email et mot de passe requis',
@@ -200,7 +581,6 @@ app.post('/signup', async (req, res) => {
     }
 
     if (password !== confirmPassword) {
-      console.log('Mots de passe ne correspondent pas');
       return res.render('signup', {
         docTitle: 'Inscription',
         errorMessage: 'Les mots de passe ne correspondent pas',
@@ -208,10 +588,8 @@ app.post('/signup', async (req, res) => {
       });
     }
 
-    console.log('Vérification utilisateur existant...');
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('Utilisateur existe déjà');
       return res.render('signup', {
         docTitle: 'Inscription',
         errorMessage: 'Cet email est déjà utilisé',
@@ -219,9 +597,7 @@ app.post('/signup', async (req, res) => {
       });
     }
 
-    console.log('Hashage du mot de passe...');
     const hashedPassword = await bcrypt.hash(password, 12);
-    console.log('Mot de passe hashé');
 
     const user = new User({
       name: email.split('@')[0],
@@ -230,49 +606,38 @@ app.post('/signup', async (req, res) => {
       cart: { items: [] }
     });
 
-    console.log('Sauvegarde utilisateur...');
     await user.save();
-    console.log('Utilisateur sauvegardé:', user._id);
+    console.log('✅ Utilisateur créé:', user._id);
 
-    console.log('Envoi email...');
-    const emailResult = await sendWelcomeEmail(user.email, user.name);
-    console.log('Résultat email:', emailResult);
+    await sendWelcomeEmail(user.email, user.name);
 
-    console.log('Configuration session...');
     req.session.userId = user._id;
-    console.log('Session configurée, redirection...');
-
     res.redirect('/dashboard');
   } catch (err) {
-    console.error('ERREUR DÉTAILLÉE:', err);
-    console.error('Stack:', err.stack);
+    console.error('ERREUR INSCRIPTION:', err);
     res.render('signup', {
       docTitle: 'Inscription',
       errorMessage: `Erreur serveur: ${err.message}`,
-      oldInput: {
-        email: req.body?.email,
-        name: req.body?.email?.split('@')[0]
-      }
+      oldInput: { email: req.body?.email, name: req.body?.email?.split('@')[0] }
     });
   }
 });
 
-// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy(err => {
-    if (err) {
-      console.error(err);
-    }
+    if (err) console.error(err);
     res.redirect('/login');
   });
 });
 
-// Mot de passe oublié - page
+// ============================================================================
+// RESET PASSWORD
+// ============================================================================
+
 app.get('/reset', (req, res) => {
   res.render('reset', { docTitle: 'Mot de passe oublié' });
 });
 
-// Mot de passe oublié - traitement
 app.post('/reset', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.body.email });
@@ -281,18 +646,11 @@ app.post('/reset', async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-
     user.resetToken = token;
-    user.resetTokenExpiration = Date.now() + 3600000; // 1 heure
+    user.resetTokenExpiration = Date.now() + 3600000;
     await user.save();
 
-    const resetLink = `http://localhost:3000/reset/${token}`;
-
-    const emailResult = await sendPasswordResetEmail(user.email, token);
-    if (!emailResult.success) {
-      console.error('Erreur envoi email:', emailResult.error);
-    }
-
+    await sendPasswordResetEmail(user.email, token);
     res.redirect('/login');
   } catch (err) {
     console.error(err);
@@ -300,7 +658,6 @@ app.post('/reset', async (req, res) => {
   }
 });
 
-// Page de nouveau mot de passe
 app.get('/reset/:token', async (req, res) => {
   try {
     const user = await User.findOne({
@@ -323,7 +680,6 @@ app.get('/reset/:token', async (req, res) => {
   }
 });
 
-// Enregistrer le nouveau mot de passe
 app.post('/new-password', async (req, res) => {
   try {
     const { password, userId, token } = req.body;
@@ -354,31 +710,20 @@ app.post('/new-password', async (req, res) => {
   }
 });
 
-// Afficher le formulaire d'ajout de produit
+// ============================================================================
+// ROUTES PRODUITS
+// ============================================================================
+
 app.get('/add-product', requireAuth, (req, res) => {
   res.render('add-product', { docTitle: 'Ajouter un Produit', errorMessage: null, oldInput: null });
 });
 
-// Traiter l'ajout de produit avec validation
 app.post('/add-product', requireAuth,
   [
-    body('title')
-      .trim()
-      .notEmpty()
-      .withMessage('Titre requis')
-      .isLength({ min: 3 })
-      .withMessage('Titre minimum 3 caractères'),
-    body('price')
-      .isFloat({ gt: 0 })
-      .withMessage('Prix invalide (doit être positif)'),
-    body('description')
-      .trim()
-      .isLength({ min: 5 })
-      .withMessage('Description minimum 5 caractères'),
-    body('imageUrl')
-      .trim()
-      .isURL()
-      .withMessage('URL d\'image invalide')
+    body('title').trim().notEmpty().withMessage('Titre requis').isLength({ min: 3 }).withMessage('Titre minimum 3 caractères'),
+    body('price').isFloat({ gt: 0 }).withMessage('Prix invalide (doit être positif)'),
+    body('description').trim().isLength({ min: 5 }).withMessage('Description minimum 5 caractères'),
+    body('imageUrl').trim().isURL().withMessage('URL d\'image invalide')
   ],
   async (req, res) => {
     try {
@@ -387,18 +732,11 @@ app.post('/add-product', requireAuth,
         return res.render('add-product', {
           docTitle: 'Ajouter un Produit',
           errorMessage: errors.array()[0].msg,
-          oldInput: {
-            title: req.body.title,
-            price: req.body.price,
-            description: req.body.description,
-            imageUrl: req.body.imageUrl
-          }
+          oldInput: req.body
         });
       }
 
-      const userId = req.session.userId;
-      const user = await User.findById(userId);
-
+      const user = await User.findById(req.session.userId);
       const product = new Product({
         title: req.body.title,
         price: req.body.price,
@@ -406,6 +744,7 @@ app.post('/add-product', requireAuth,
         imageUrl: req.body.imageUrl,
         userId: user._id
       });
+      
       await product.save();
       res.redirect('/dashboard');
     } catch (err) {
@@ -413,17 +752,12 @@ app.post('/add-product', requireAuth,
       res.render('add-product', {
         docTitle: 'Ajouter un Produit',
         errorMessage: 'Erreur serveur',
-        oldInput: {
-          title: req.body.title,
-          price: req.body.price,
-          description: req.body.description,
-          imageUrl: req.body.imageUrl
-        }
+        oldInput: req.body
       });
     }
-  });
+  }
+);
 
-// Afficher le formulaire d'édition de produit
 app.get('/edit-product/:id', requireAuth, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -437,7 +771,6 @@ app.get('/edit-product/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Traiter la modification de produit
 app.post('/edit-product/:id', requireAuth, async (req, res) => {
   try {
     await Product.findByIdAndUpdate(req.params.id, {
@@ -453,7 +786,6 @@ app.post('/edit-product/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Supprimer un produit
 app.post('/delete-product/:id', requireAuth, async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
@@ -464,7 +796,10 @@ app.post('/delete-product/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Affichage des produits dans le navigateur
+// ============================================================================
+// ROUTES API PRODUITS
+// ============================================================================
+
 app.get('/view-produits', async (req, res) => {
   try {
     const products = await Product.find().populate('userId');
@@ -496,18 +831,13 @@ app.get('/view-produits', async (req, res) => {
         </div>
       `;
     });
-    html += `
-        </div>
-      </body>
-      </html>
-    `;
+    html += `</div></body></html>`;
     res.send(html);
   } catch (err) {
     res.status(500).send('Erreur serveur');
   }
 });
 
-// Création produit
 app.post('/produits', async (req, res) => {
   try {
     let user = await User.findOne({ email: 'john@example.com' });
@@ -525,7 +855,6 @@ app.post('/produits', async (req, res) => {
   }
 });
 
-// Lire tous les produits
 app.get('/produits', async (req, res) => {
   try {
     const products = await Product.find().populate('userId');
@@ -535,7 +864,6 @@ app.get('/produits', async (req, res) => {
   }
 });
 
-// Supprimer produit
 app.delete('/produits/:id', async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
@@ -545,7 +873,6 @@ app.delete('/produits/:id', async (req, res) => {
   }
 });
 
-// Modifier produit
 app.put('/produits/:id', async (req, res) => {
   try {
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -555,13 +882,56 @@ app.put('/produits/:id', async (req, res) => {
   }
 });
 
-// ÉTAPE 6 — Gestion d'erreurs production (masquer les détails sensibles)
+// ============================================================================
+// DEBUG ROUTES
+// ============================================================================
+
+app.get('/debug/cart', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.session.userId).populate('cart.items.productId');
+    return res.json({ cart: user.cart });
+  } catch (err) {
+    console.error('DEBUG /debug/cart error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+app.get('/debug/cart/public/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const user = await User.findOne({ email }).populate('cart.items.productId');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    return res.json({ email: user.email, cart: user.cart });
+  } catch (err) {
+    console.error('DEBUG PUBLIC /debug/cart/public error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// ============================================================================
+// ERROR HANDLER
+// ============================================================================
+
 app.use((error, req, res, next) => {
   console.error('Erreur serveur:', error);
   res.status(500).render('500', {
-    pageTitle: 'Erreur',
-    path: '/500'
+    docTitle: 'Erreur Serveur'
   });
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`🚀 Server running on port ${process.env.PORT || 3000}`));
+// ============================================================================
+// START SERVER
+// ============================================================================
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log('='.repeat(60));
+  console.log('🚀 Serveur démarré avec succès');
+  console.log('='.repeat(60));
+  console.log(`📍 URL: http://localhost:${PORT}`);
+  console.log(`🔐 Stripe Secret Key: ${process.env.STRIPE_SECRET_KEY ? '✅ Configuré' : '❌ Manquant'}`);
+  console.log(`🔑 Stripe Publishable Key: ${process.env.STRIPE_PUBLISHABLE_KEY ? '✅ Configuré' : '❌ Manquant'}`);
+  console.log(`🪝 Webhook Secret: ${process.env.STRIPE_WEBHOOK_SECRET ? '✅ Configuré' : '⚠️ Non configuré (webhooks désactivés)'}`);
+  console.log(`💾 MongoDB: ${process.env.MONGODB_URI ? '✅ Connecté' : '❌ Non configuré'}`);
+  console.log('='.repeat(60));
+});

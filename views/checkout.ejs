@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= docTitle || 'Paiement' %></title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f6f9fc;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #635bff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 20px;
+      transition: color 0.2s;
+    }
+    
+    .back-button:hover {
+      color: #0a2540;
+    }
+    
+    .checkout-wrapper {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: white;
+      padding: 24px 32px;
+      border-bottom: 1px solid #e6e6e6;
+    }
+    
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .business-name {
+      font-size: 20px;
+      font-weight: 600;
+      color: #0a2540;
+    }
+    
+    .test-badge {
+      display: inline-block;
+      background: #f6f9fc;
+      color: #697386;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .environment {
+      font-size: 13px;
+      color: #697386;
+    }
+    
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 0;
+    }
+    
+    .checkout-section {
+      padding: 32px;
+      border-right: 1px solid #e6e6e6;
+    }
+    
+    .summary-section {
+      padding: 32px;
+      background: #fafbfc;
+    }
+    
+    .order-summary {
+      margin-bottom: 32px;
+    }
+    
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .item-name {
+      font-size: 16px;
+      font-weight: 500;
+      color: #0a2540;
+    }
+    
+    .item-price {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0a2540;
+    }
+    
+    .order-id {
+      font-size: 13px;
+      color: #697386;
+      margin-top: 8px;
+    }
+    
+    #checkout {
+      min-height: 500px;
+      position: relative;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 80px 20px;
+      color: #697386;
+    }
+    
+    .spinner {
+      border: 3px solid #f0f0f0;
+      border-top: 3px solid #635bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      font-size: 14px;
+      color: #697386;
+    }
+    
+    .error {
+      background: #fff4f4;
+      color: #c23d4b;
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 16px;
+      border-left: 4px solid #c23d4b;
+      display: none;
+    }
+    
+    .error.show {
+      display: block;
+    }
+    
+    .error-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .error-message {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    
+    .security-footer {
+      padding: 20px 32px;
+      background: #fafbfc;
+      border-top: 1px solid #e6e6e6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #697386;
+    }
+    
+    .security-icon {
+      color: #00d924;
+      font-size: 16px;
+    }
+    
+    .stripe-branding {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: #8898aa;
+    }
+    
+    .stripe-branding a {
+      color: #635bff;
+      text-decoration: none;
+    }
+    
+    .stripe-branding a:hover {
+      text-decoration: underline;
+    }
+    
+    @media (max-width: 768px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .checkout-section {
+        border-right: none;
+        border-bottom: 1px solid #e6e6e6;
+      }
+      
+      .summary-section {
+        order: -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/dashboard" class="back-button">
+      <span>←</span>
+      <span>Retour</span>
+    </a>
+    
+    <div class="checkout-wrapper">
+      <div class="header">
+        <div class="header-top">
+          <div class="business-name">New business sandbox</div>
+          <div class="test-badge">Environnement de test</div>
+        </div>
+        <div class="environment"></div>
+      </div>
+      
+      <div class="content-grid">
+        <div class="checkout-section">
+          <div id="checkout">
+            <div class="loading">
+              <div class="spinner"></div>
+              <div class="loading-text">Chargement du formulaire de paiement...</div>
+            </div>
+          </div>
+          
+          <div id="error-message" class="error">
+            <div class="error-title">⚠️ Erreur de chargement</div>
+            <div class="error-message"></div>
+          </div>
+        </div>
+        
+        <div class="summary-section">
+          <div class="order-summary">
+            
+          
+          <div class="stripe-branding">
+            Propulsé par <a href="https://stripe.com" target="_blank">Stripe</a>
+            <br>
+            <a href="https://stripe.com/privacy" target="_blank">Conditions d'utilisation</a> · 
+            <a href="https://stripe.com/privacy" target="_blank">Confidentialité</a>
+          </div>
+        </div>
+      </div>
+      
+      <div class="security-footer">
+        <span class="security-icon">🔒</span>
+        <span>Payez en toute sécurité chez New business sandbox et partout où <strong>Stripe</strong> est accepté.</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    (async function() {
+      const clientSecret = '<%= clientSecret %>';
+      const publishableKey = '<%= publishableKey %>';
+      
+      console.log('🔑 Initialisation du paiement Stripe...');
+      console.log('📋 Client Secret présent:', !!clientSecret);
+      console.log('📋 Publishable Key présent:', !!publishableKey);
+      
+      // Validation des paramètres
+      if (!clientSecret) {
+        showError('Client secret manquant', 'Le serveur n\'a pas fourni de client secret valide. Veuillez réessayer.');
+        return;
+      }
+      
+      if (!publishableKey) {
+        showError('Clé publique manquante', 'La clé publique Stripe n\'est pas configurée. Veuillez contacter l\'administrateur.');
+        return;
+      }
+      
+      try {
+        // Initialiser Stripe
+        const stripe = Stripe(publishableKey);
+        console.log('✅ Stripe initialisé avec succès');
+        
+        // Créer l'interface Embedded Checkout
+        const checkout = await stripe.initEmbeddedCheckout({
+          clientSecret: clientSecret
+        });
+        
+        console.log('✅ Interface Embedded Checkout créée');
+        
+        // Vider le conteneur avant de monter (IMPORTANT pour Stripe Embedded)
+        const checkoutContainer = document.getElementById('checkout');
+        checkoutContainer.innerHTML = '';
+        
+        // Monter l'interface dans le DOM
+        checkout.mount('#checkout');
+        console.log('✅ Interface montée avec succès');
+        
+      } catch (error) {
+        console.error('❌ Erreur Stripe:', error);
+        
+        let errorMessage = 'Une erreur est survenue lors du chargement du formulaire de paiement.';
+        
+        // Messages d'erreur plus spécifiques
+        if (error.message.includes('Invalid client secret')) {
+          errorMessage = 'Le client secret fourni est invalide. Veuillez réessayer.';
+        } else if (error.message.includes('Invalid API key')) {
+          errorMessage = 'La clé API Stripe est invalide. Veuillez contacter l\'administrateur.';
+        } else if (error.message.includes('Embedded Checkout must be mounted')) {
+          errorMessage = 'Erreur de montage du formulaire. Veuillez rafraîchir la page.';
+        } else if (error.message) {
+          errorMessage += ' Détails: ' + error.message;
+        }
+        
+        showError('Erreur de chargement', errorMessage);
+      }
+      
+      function showError(title, message) {
+        const errorDiv = document.getElementById('error-message');
+        const errorTitle = errorDiv.querySelector('.error-title');
+        const errorMessage = errorDiv.querySelector('.error-message');
+        
+        errorTitle.textContent = '⚠️ ' + title;
+        errorMessage.textContent = message;
+        errorDiv.classList.add('show');
+        
+        // Masquer le loader
+        const checkoutDiv = document.getElementById('checkout');
+        checkoutDiv.innerHTML = '';
+      }
+    })();
+  </script>
+</body>
+</html>

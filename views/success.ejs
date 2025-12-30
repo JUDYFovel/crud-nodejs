@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Paiement réussi - Merci pour votre achat</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+      padding: 40px 30px;
+      text-align: center;
+      color: white;
+    }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      animation: scaleIn 0.5s ease-out;
+    }
+
+    .success-icon svg {
+      width: 50px;
+      height: 50px;
+      stroke: #00b894;
+      stroke-width: 3;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      animation: drawCheck 0.8s ease-out 0.3s both;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+
+    @keyframes drawCheck {
+      to { stroke-dashoffset: 0; }
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      opacity: 0.95;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .amount-display {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 25px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .amount-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 5px;
+    }
+
+    .amount-value {
+      font-size: 42px;
+      font-weight: 700;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .info-card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-label {
+      color: #6c757d;
+      font-weight: 500;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .info-value {
+      color: #212529;
+      font-weight: 600;
+      font-size: 16px;
+      word-break: break-word;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-paid { background: #d4edda; color: #155724; }
+    .status-complete { background: #cce5ff; color: #004085; }
+    .status-unpaid { background: #f8d7da; color: #721c24; }
+
+    .address-box {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 10px;
+    }
+
+    .address-box p {
+      margin: 5px 0;
+      color: #495057;
+    }
+
+    .items-list {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .item-details {
+      flex: 1;
+    }
+
+    .item-name {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 5px;
+    }
+
+    .item-price {
+      font-size: 18px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .metadata-item {
+      padding: 10px;
+      background: white;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .metadata-key {
+      font-weight: 600;
+      color: #667eea;
+      margin-right: 10px;
+    }
+
+    .details-toggle {
+      background: none;
+      border: 2px solid #667eea;
+      color: #667eea;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.3s;
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .details-toggle:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    .json-details {
+      display: none;
+      background: #2d3748;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      margin-top: 15px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .json-details.active {
+      display: block;
+    }
+
+    .json-details pre {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      font-family: 'Courier New', monospace;
+    }
+
+    .btn-dashboard {
+      display: block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 30px;
+    }
+
+    .btn-dashboard:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    @media (max-width: 600px) {
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+      
+      .amount-value {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="success-icon">
+        <svg viewBox="0 0 52 52">
+          <polyline points="14 27 22 35 38 19"/>
+        </svg>
+      </div>
+      <h1>Paiement réussi !</h1>
+      <p class="subtitle">Merci pour votre achat</p>
+    </div>
+
+    <div class="content">
+      <!-- MONTANT PRINCIPAL -->
+      <div class="amount-display">
+        <div class="amount-label">Montant total payé</div>
+        <div class="amount-value"><%= (session.amount_total / 100).toFixed(2) %> <%= session.currency.toUpperCase() %></div>
+      </div>
+
+      <!-- INFORMATIONS DE TRANSACTION -->
+      <div class="section">
+        <h2 class="section-title">📋 Informations de transaction</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-label">ID de transaction</div>
+            <div class="info-value" style="font-size: 12px;"><%= session.payment_intent %></div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">ID de session</div>
+            <div class="info-value" style="font-size: 12px;"><%= session.id %></div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Date de paiement</div>
+            <div class="info-value"><%= new Date(session.created * 1000).toLocaleDateString('fr-FR') %></div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Heure de paiement</div>
+            <div class="info-value"><%= new Date(session.created * 1000).toLocaleTimeString('fr-FR') %></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATUTS -->
+      <div class="section">
+        <h2 class="section-title">✅ Statuts</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-label">Statut du paiement</div>
+            <div class="info-value">
+              <span class="status-badge status-<%= session.payment_status %>">
+                <%= session.payment_status.toUpperCase() %>
+              </span>
+            </div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Statut de la session</div>
+            <div class="info-value">
+              <span class="status-badge status-<%= session.status %>">
+                <%= session.status.toUpperCase() %>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFORMATIONS CLIENT -->
+      <div class="section">
+        <h2 class="section-title">👤 Informations client</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-label">Nom complet</div>
+            <div class="info-value">
+              <%= session.metadata && session.metadata.userName ? session.metadata.userName : session.customer_details.name %>
+            </div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Email</div>
+            <div class="info-value"><%= session.customer_details.email %></div>
+          </div>
+          <% if (session.customer_details.phone || (session.metadata && session.metadata.userPhone)) { %>
+          <div class="info-card">
+            <div class="info-label">Téléphone</div>
+            <div class="info-value">
+              <%= session.customer_details.phone || session.metadata.userPhone %>
+            </div>
+          </div>
+          <% } %>
+          <% if (session.metadata && session.metadata.userId) { %>
+          <div class="info-card">
+            <div class="info-label">ID Utilisateur</div>
+            <div class="info-value" style="font-size: 12px;"><%= session.metadata.userId %></div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ADRESSE DE FACTURATION -->
+      <% if (session.customer_details && session.customer_details.address) { %>
+      <div class="section">
+        <h2 class="section-title">📍 Adresse de facturation</h2>
+        <div class="address-box">
+          <% if (session.customer_details.address.line1) { %>
+            <p><strong><%= session.customer_details.address.line1 %></strong></p>
+          <% } %>
+          <% if (session.customer_details.address.line2) { %>
+            <p><%= session.customer_details.address.line2 %></p>
+          <% } %>
+          <p>
+            <% if (session.customer_details.address.postal_code) { %>
+              <%= session.customer_details.address.postal_code %>
+            <% } %>
+            <% if (session.customer_details.address.city) { %>
+              <%= session.customer_details.address.city %>
+            <% } %>
+          </p>
+          <% if (session.customer_details.address.state) { %>
+            <p><%= session.customer_details.address.state %></p>
+          <% } %>
+          <% if (session.customer_details.address.country) { %>
+            <p><strong><%= session.customer_details.address.country %></strong></p>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ADRESSE DE LIVRAISON (depuis metadata) -->
+      <% if (session.metadata && session.metadata.shippingAddress) { %>
+      <div class="section">
+        <h2 class="section-title">🚚 Adresse de livraison</h2>
+        <div class="address-box">
+          <% 
+            let shippingAddr;
+            try {
+              shippingAddr = JSON.parse(session.metadata.shippingAddress);
+            } catch(e) {
+              shippingAddr = null;
+            }
+          %>
+          <% if (shippingAddr && typeof shippingAddr === 'object') { %>
+            <% if (shippingAddr.line1) { %>
+              <p><strong><%= shippingAddr.line1 %></strong></p>
+            <% } %>
+            <% if (shippingAddr.line2) { %>
+              <p><%= shippingAddr.line2 %></p>
+            <% } %>
+            <p>
+              <%= shippingAddr.postal_code || '' %>
+              <%= shippingAddr.city || '' %>
+            </p>
+            <% if (shippingAddr.state) { %>
+              <p><%= shippingAddr.state %></p>
+            <% } %>
+            <% if (shippingAddr.country) { %>
+              <p><strong><%= shippingAddr.country %></strong></p>
+            <% } %>
+          <% } else { %>
+            <p><%= session.metadata.shippingAddress %></p>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ARTICLES COMMANDÉS -->
+      <% if (session.line_items && session.line_items.data && session.line_items.data.length > 0) { %>
+      <div class="section">
+        <h2 class="section-title">🛍️ Articles commandés</h2>
+        <div class="items-list">
+          <% session.line_items.data.forEach(function(item) { %>
+          <div class="item">
+            <div class="item-details">
+              <div class="item-name"><%= item.description %></div>
+              <div style="color: #6c757d; font-size: 14px;">Quantité: <%= item.quantity %></div>
+            </div>
+            <div class="item-price">
+              <%= (item.amount_total / 100).toFixed(2) %> <%= session.currency.toUpperCase() %>
+            </div>
+          </div>
+          <% }); %>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- INFORMATIONS SUPPLÉMENTAIRES (METADATA) -->
+      <% if (session.metadata && Object.keys(session.metadata).length > 0) { %>
+      <div class="section">
+        <h2 class="section-title">ℹ️ Informations supplémentaires</h2>
+        <div class="address-box">
+          <% 
+            const excludeKeys = ['userId', 'userName', 'userEmail', 'userPhone', 'shippingAddress'];
+            const metadataKeys = Object.keys(session.metadata).filter(key => !excludeKeys.includes(key));
+          %>
+          <% if (metadataKeys.length > 0) { %>
+            <% metadataKeys.forEach(function(key) { %>
+              <div class="metadata-item">
+                <span class="metadata-key"><%= key %>:</span>
+                <span><%= session.metadata[key] %></span>
+              </div>
+            <% }); %>
+          <% } else { %>
+            <% if (session.metadata.additionalInfo) { %>
+              <div class="metadata-item">
+                <span class="metadata-key">Note:</span>
+                <span><%= session.metadata.additionalInfo %></span>
+              </div>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- BOUTON DÉTAILS TECHNIQUES -->
+      <button class="details-toggle" onclick="toggleDetails()">
+        Afficher les détails techniques complets
+      </button>
+
+      <div class="json-details" id="jsonDetails">
+        <pre><%= JSON.stringify(session, null, 2) %></pre>
+      </div>
+
+      <!-- BOUTON RETOUR -->
+      <a href="/dashboard" class="btn-dashboard">Retour au tableau de bord</a>
+    </div>
+  </div>
+
+  <script>
+    function toggleDetails() {
+      const details = document.getElementById('jsonDetails');
+      const button = document.querySelector('.details-toggle');
+      
+      details.classList.toggle('active');
+      
+      if (details.classList.contains('active')) {
+        button.textContent = 'Masquer les détails techniques';
+      } else {
+        button.textContent = 'Afficher les détails techniques complets';
+      }
+    }
+  </script>
+</body>
+</html>
