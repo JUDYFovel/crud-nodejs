@@ -66,3 +66,7 @@ Thumbs.db
 # Database files
 *.sqlite
 *.db
+
+# SSL Certificates
+key.pem
+cert.pem

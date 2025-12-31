@@ -15,7 +15,8 @@
   "author": "Judicael",
   "license": "ISC",
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "selfsigned": "^5.4.0"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.6.0",
